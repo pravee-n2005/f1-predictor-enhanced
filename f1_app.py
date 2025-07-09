@@ -1,69 +1,77 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
 
-# Load data and cache it for performance
+st.set_page_config(page_title="🏁 F1 Race Winner Predictor", layout="centered")
+
 @st.cache_data
 def load_data():
     df = pd.read_csv("race_data_full.csv")
 
+    # Check required columns
+    required = ['grid', 'constructor', 'circuit', 'winner']
+    if not all(col in df.columns for col in required):
+        raise ValueError(f"CSV must contain columns: {required}")
+
     # Encode categorical columns
-    mapper = {
-        'constructor': LabelEncoder(),
-        'circuit': LabelEncoder()
-    }
-
-    for col, le in mapper.items():
+    mapper = {}
+    for col in ['constructor', 'circuit']:
+        le = LabelEncoder()
         df[col + '_encoded'] = le.fit_transform(df[col])
+        mapper[col] = le
 
-    # Features and label
-    features = ['grid', 'constructor_encoded', 'circuit_encoded']
-    X = df[features]
+    # Features and target
+    X = df[['grid', 'constructor_encoded', 'circuit_encoded']]
     y = df['winner']
-
     return X, y, df, mapper
 
-# Train model
-def train_model(X, y):
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    model.fit(X_train, y_train)
-    accuracy = accuracy_score(y_test, model.predict(X_test))
-    return model, accuracy
-
-# App UI
-st.title("🏁 F1 Race Winner Predictor")
-st.markdown("### Predict if a constructor will win the race based on grid position, circuit, and constructor name.")
-
 # Load and train
-X, y, df, mapper = load_data()
-model, accuracy = train_model(X, y)
+try:
+    X, y, df, mapper = load_data()
+    model = RandomForestClassifier(n_estimators=150, random_state=42)
+    model.fit(X, y)
+    accuracy = model.score(X, y)
 
-# Show model accuracy
-st.success(f"✅ Model Accuracy: {accuracy:.2f}")
+    # UI
+    st.title("🏁 F1 Race Winner Predictor")
+    st.markdown("Predict if a constructor will win based on starting grid, circuit, and team.")
 
-# User inputs
-constructor_list = sorted(df['constructor'].unique())
-circuit_list = sorted(df['circuit'].unique())
+    st.sidebar.header("🔧 Input Configuration")
 
-selected_constructor = st.selectbox("🏎 Select Constructor", constructor_list)
-selected_circuit = st.selectbox("📍 Select Circuit", circuit_list)
-grid_position = st.number_input("🔢 Starting Grid Position (1 = Pole)", min_value=1, max_value=20, value=1)
+    constructor = st.sidebar.selectbox("Select Constructor", mapper['constructor'].classes_)
+    circuit = st.sidebar.selectbox("Select Circuit", mapper['circuit'].classes_)
+    grid = st.sidebar.slider("Starting Grid Position", 1, 20, 5)
 
-# Prediction
-if st.button("🔮 Predict Winner"):
-    input_data = pd.DataFrame({
-        'grid': [grid_position],
-        'constructor_encoded': [mapper['constructor'].transform([selected_constructor])[0]],
-        'circuit_encoded': [mapper['circuit'].transform([selected_circuit])[0]]
-    })
+    # Encode user input
+    constructor_enc = mapper['constructor'].transform([constructor])[0]
+    circuit_enc = mapper['circuit'].transform([circuit])[0]
+    user_input = [[grid, constructor_enc, circuit_enc]]
 
-    prediction = model.predict(input_data)[0]
+    prediction = model.predict(user_input)[0]
+    probability = model.predict_proba(user_input)[0][1]
 
+    st.subheader("✅ Model Accuracy")
+    st.metric("Training Accuracy", f"{accuracy:.2f}")
+
+    st.subheader("🔮 Prediction")
+    st.write(f"**Constructor:** {constructor} | **Circuit:** {circuit} | **Grid:** P{grid}")
+
+    st.progress(probability, text="Predicted Win Probability")
     if prediction == 1:
-        st.success(f"✅ {selected_constructor} starting at P{grid_position} is predicted to WIN at {selected_circuit}!")
+        st.success(f"🎉 {constructor} is predicted to **WIN** from P{grid} at {circuit}!")
     else:
-        st.error(f"❌ {selected_constructor} starting at P{grid_position} is predicted to NOT win at {selected_circuit}.")
+        st.error(f"❌ {constructor} is predicted to **NOT win** from P{grid} at {circuit}.")
+
+    # Past data
+    st.subheader("📊 Historical Win Rates")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.metric("Constructor Win Rate", f"{100 * df[df['constructor'] == constructor]['winner'].mean():.1f}%")
+    with col2:
+        st.metric("Circuit Win Rate", f"{100 * df[df['circuit'] == circuit]['winner'].mean():.1f}%")
+
+except Exception as e:
+    st.error(f"❌ App failed to load. Error: {e}")
