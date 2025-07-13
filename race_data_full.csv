@@ -1,9 +1,9 @@
-grid,constructor,circuit,winner
-1,Red Bull,Monaco,1
-2,Ferrari,Monaco,0
-1,Mercedes,Silverstone,1
-3,Red Bull,Silverstone,0
-2,Ferrari,Monza,1
-1,Mercedes,Monza,0
-4,Alpine,Spa,0
-5,McLaren,Spa,0
+grid,constructor,circuit,driver,winner
+1,Red Bull,Monaco,Verstappen,1
+2,Ferrari,Monaco,Leclerc,0
+1,Mercedes,Silverstone,Hamilton,1
+3,Red Bull,Silverstone,Perez,0
+2,Ferrari,Monza,Sainz,1
+1,Mercedes,Monza,Russell,0
+4,Alpine,Spa,Ocon,0
+5,McLaren,Spa,Norris,0
